@@ -69,13 +69,27 @@ func parseRequest(conn net.Conn) HttpRequest {
 	method := requestLine[0]
 	path := requestLine[1]
 
-	return HttpRequest{method: method, path: path}
+	// parse request headers
+	headers := make(map[string]string)
+	for i := 1; i < len(splitted); i++ {
+		if splitted[i] == "" {
+			break
+		}
+		header := strings.Split(splitted[i], ": ")
+		headers[strings.ToUpper(header[0])] = header[1]
+	}
+
+	return HttpRequest{method: method, path: path, headers: headers}
 }
 
 func handleRequest(request HttpRequest) HttpResponse {
 	if request.method == "GET" {
 		if request.path == "/" {
 			return HttpResponse{status: OK}
+		}
+
+		if request.path == "/user-agent" {
+			return HttpResponse{status: OK, body: request.headers["USER-AGENT"]}
 		}
 		path_parts := strings.Split(request.path, "/")
 		if len(path_parts) != 3 {
