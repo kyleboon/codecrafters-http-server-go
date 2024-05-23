@@ -7,6 +7,16 @@ import (
 	"strings"
 )
 
+type Status string
+
+const (
+	OK               = "200 OK"
+	NotFound         = "404 Not Found"
+	MethodNotAllowed = "405 Method Not Allowed"
+)
+
+const HTTP_VERSION = "HTTP/1.1"
+
 type HttpRequest struct {
 	method  string
 	path    string
@@ -15,7 +25,7 @@ type HttpRequest struct {
 }
 
 type HttpResponse struct {
-	status  int
+	status  Status
 	headers map[string]string
 	body    string
 }
@@ -65,17 +75,34 @@ func parseRequest(conn net.Conn) HttpRequest {
 func handleRequest(request HttpRequest) HttpResponse {
 	if request.method == "GET" {
 		if request.path == "/" {
-			return HttpResponse{status: 200, body: "OK"}
+			return HttpResponse{status: OK}
+		}
+		path_parts := strings.Split(request.path, "/")
+		if len(path_parts) != 3 {
+			return HttpResponse{status: NotFound}
+		}
+		if path_parts[1] == "echo" {
+			return HttpResponse{status: OK, body: path_parts[2]}
 		} else {
-			return HttpResponse{status: 404, body: "Not Found"}
+			return HttpResponse{status: NotFound}
 		}
 
 	} else {
-		return HttpResponse{status: 405, body: "Method Not Allowed"}
+		return HttpResponse{status: MethodNotAllowed, body: "Method Not Allowed"}
 	}
 }
 
 func writeResponse(conn net.Conn, response HttpResponse) {
-	conn.Write([]byte(fmt.Sprintf("HTTP/1.1 %d %s\r\n\r\n", response.status, response.body)))
+	response.headers = make(map[string]string)
+	response.headers["Content-Type"] = "text/plain"
+	response.headers["Content-Length"] = fmt.Sprintf("%d", len(response.body))
+
+	// build up the response string
+	response_string := fmt.Sprintf("%s %s\r\n", HTTP_VERSION, response.status)
+	response_string += fmt.Sprintf("Content-Type: %s\r\n", response.headers["Content-Type"])
+	response_string += fmt.Sprintf("Content-Length: %s\r\n", response.headers["Content-Length"])
+	response_string += fmt.Sprintf("\r\n%s", response.body)
+
+	conn.Write([]byte(response_string))
 	conn.Close()
 }
