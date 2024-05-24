@@ -25,13 +25,19 @@ type HttpRequest struct {
 }
 
 type HttpResponse struct {
-	status  Status
-	headers map[string]string
-	body    string
+	status       Status
+	content_type string `default:"text/plain"`
+	headers      map[string]string
+	body         string
 }
 
 func main() {
 	fmt.Println("Logs from your program will appear here!")
+
+	var directory string
+	if len(os.Args) == 3 {
+		directory = os.Args[2]
+	}
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
@@ -47,13 +53,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		go handleConnection(conn)
+		go handleConnection(conn, directory)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, directory string) {
 	httpRequest := parseRequest(conn)
-	httpResponse := handleRequest(httpRequest)
+	httpResponse := handleRequest(httpRequest, directory)
 	writeResponse(conn, httpResponse)
 }
 
@@ -87,33 +93,35 @@ func parseRequest(conn net.Conn) HttpRequest {
 	return HttpRequest{method: method, path: path, headers: headers}
 }
 
-func handleRequest(request HttpRequest) HttpResponse {
+func handleRequest(request HttpRequest, directory string) HttpResponse {
 	if request.method == "GET" {
-		if request.path == "/" {
+		switch {
+		case request.path == "/":
 			return HttpResponse{status: OK}
-		}
-
-		if request.path == "/user-agent" {
+		case request.path == "/user-agent":
 			return HttpResponse{status: OK, body: request.headers["USER-AGENT"]}
-		}
-		path_parts := strings.Split(request.path, "/")
-		if len(path_parts) != 3 {
-			return HttpResponse{status: NotFound}
-		}
-		if path_parts[1] == "echo" {
-			return HttpResponse{status: OK, body: path_parts[2]}
-		} else {
-			return HttpResponse{status: NotFound}
-		}
+		case strings.HasPrefix(request.path, "/echo/"):
+			return HttpResponse{status: OK, body: request.path[6:]}
+		case strings.HasPrefix(request.path, "/files/"):
+			filePath := directory + request.path[6:]
+			file_contents, err := os.ReadFile(filePath)
+			if err != nil {
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			return HttpResponse{status: OK, content_type: "application/octet-stream", body: string(file_contents)}
 
+		default:
+			return HttpResponse{status: NotFound}
+		}
 	} else {
-		return HttpResponse{status: MethodNotAllowed, body: "Method Not Allowed"}
+		return HttpResponse{status: MethodNotAllowed}
 	}
 }
 
 func writeResponse(conn net.Conn, response HttpResponse) {
 	response.headers = make(map[string]string)
-	response.headers["Content-Type"] = "text/plain"
+	response.headers["Content-Type"] = response.content_type
 	response.headers["Content-Length"] = fmt.Sprintf("%d", len(response.body))
 
 	// build up the response string
