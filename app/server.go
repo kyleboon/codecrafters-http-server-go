@@ -26,7 +26,7 @@ type HttpRequest struct {
 
 type HttpResponse struct {
 	status       Status
-	content_type string `default:"text/plain"`
+	content_type string
 	headers      map[string]string
 	body         string
 }
@@ -97,24 +97,24 @@ func handleRequest(request HttpRequest, directory string) HttpResponse {
 	if request.method == "GET" {
 		switch {
 		case request.path == "/":
-			return HttpResponse{status: OK}
+			return HttpResponse{status: OK, content_type: "text/plain"}
 		case request.path == "/user-agent":
-			return HttpResponse{status: OK, body: request.headers["USER-AGENT"]}
+			return HttpResponse{status: OK, content_type: "text/plain", body: request.headers["USER-AGENT"]}
 		case strings.HasPrefix(request.path, "/echo/"):
-			return HttpResponse{status: OK, body: request.path[6:]}
+			return HttpResponse{status: OK, content_type: "text/plain", body: request.path[6:]}
 		case strings.HasPrefix(request.path, "/files/"):
 			filePath := directory + request.path[6:]
 			file_contents, err := os.ReadFile(filePath)
 			if err != nil {
-				return HttpResponse{status: NotFound}
+				return HttpResponse{status: NotFound, content_type: "text/plain"}
 			}
 			return HttpResponse{status: OK, content_type: "application/octet-stream", body: string(file_contents)}
 
 		default:
-			return HttpResponse{status: NotFound}
+			return HttpResponse{status: NotFound, content_type: "text/plain"}
 		}
 	} else {
-		return HttpResponse{status: MethodNotAllowed}
+		return HttpResponse{status: MethodNotAllowed, content_type: "text/plain"}
 	}
 }
 
