@@ -106,8 +106,7 @@ func handleRequest(request HttpRequest, directory string) HttpResponse {
 			filePath := directory + request.path[6:]
 			file_contents, err := os.ReadFile(filePath)
 			if err != nil {
-				fmt.Println("Error:", err)
-				os.Exit(1)
+				return HttpResponse{status: NotFound}
 			}
 			return HttpResponse{status: OK, content_type: "application/octet-stream", body: string(file_contents)}
 
