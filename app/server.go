@@ -13,6 +13,7 @@ const (
 	OK               = "200 OK"
 	NotFound         = "404 Not Found"
 	MethodNotAllowed = "405 Method Not Allowed"
+	CREATED          = "201 Created"
 )
 
 const HTTP_VERSION = "HTTP/1.1"
@@ -67,30 +68,39 @@ func parseRequest(conn net.Conn) HttpRequest {
 	// Create a buffer to read data into
 	buffer := make([]byte, 1024)
 
-	// Read data from the client
-	_, err := conn.Read(buffer)
+	n, err := conn.Read(buffer)
 
 	if err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)
 	}
 
+	buffer = buffer[0:n]
 	splitted := strings.Split(string(buffer), "\r\n")
 	requestLine := strings.Split(splitted[0], " ")
 	method := requestLine[0]
 	path := requestLine[1]
+	var body string
 
 	// parse request headers
 	headers := make(map[string]string)
 	for i := 1; i < len(splitted); i++ {
+		// TODO: I think i need to only read the number of bytes specified in the content-length header
 		if splitted[i] == "" {
+			fmt.Println("Last line of headers")
+			if i+1 < len(splitted) {
+				fmt.Println("Body found")
+				body = splitted[i+1]
+				fmt.Println(body)
+				fmt.Println("The was the body")
+			}
 			break
 		}
 		header := strings.Split(splitted[i], ": ")
 		headers[strings.ToUpper(header[0])] = header[1]
 	}
 
-	return HttpRequest{method: method, path: path, headers: headers}
+	return HttpRequest{method: method, path: path, headers: headers, body: body}
 }
 
 func handleRequest(request HttpRequest, directory string) HttpResponse {
@@ -114,7 +124,19 @@ func handleRequest(request HttpRequest, directory string) HttpResponse {
 			return HttpResponse{status: NotFound, content_type: "text/plain"}
 		}
 	} else {
-		return HttpResponse{status: MethodNotAllowed, content_type: "text/plain"}
+		switch {
+		case strings.HasPrefix(request.path, "/files/"):
+			filePath := directory + request.path[6:]
+			err := os.WriteFile(filePath, []byte(request.body), 0644)
+			if err != nil {
+				panic(err)
+			}
+
+			return HttpResponse{status: CREATED, content_type: "text/plain"}
+		default:
+			return HttpResponse{status: NotFound, content_type: "text/plain"}
+
+		}
 	}
 }
 
